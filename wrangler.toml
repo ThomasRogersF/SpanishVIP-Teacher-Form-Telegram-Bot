@@ -45,14 +45,14 @@ enabled = true
 #   npx wrangler kv namespace create BOT_KV --preview
 [[kv_namespaces]]
 binding = "BOT_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID"
+id = "3fa8887f58dd4dd1a7551dbb273903c7"
+preview_id = "64e222a46e9b4fbab712bf88f6696b6c"
 
 # --- Non-secret Variables ---
 # MIN_WEEKLY_HOURS: applicants with fewer available hours than this value will FAIL.
 # Change this value here and redeploy to adjust the threshold without touching code.
 [vars]
-MIN_WEEKLY_HOURS = "15"
+MIN_WEEKLY_HOURS = 15
 
 # --- Secrets ---
 # The following must be set via `wrangler secret put` (NOT here):
