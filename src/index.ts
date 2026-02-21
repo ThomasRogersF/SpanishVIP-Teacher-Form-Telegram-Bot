@@ -1,7 +1,7 @@
 // =============================================================================
 // SpanishVIP Teacher Screening Bot — Cloudflare Worker
 // =============================================================================
-// Flow: /start <applicant_token> → 5 inline-keyboard questions → PASS/FAIL
+// Flow: /start <applicant_token> → 8 inline-keyboard questions → PASS/FAIL
 // Results are POSTed to Make.com. PASS candidates are handed to Maria Camila.
 // =============================================================================
 
@@ -13,7 +13,7 @@ interface Env {
   BOT_TOKEN: string;
   BOT_KV: KVNamespace;
   MAKE_WEBHOOK_URL: string;
-  MARIA_TELEGRAM_LINK: string;
+  MARIA_WHATSAPP_LINK: string;
   MIN_WEEKLY_HOURS?: string; // optional string env var; defaults to "15"
 }
 
@@ -23,6 +23,9 @@ type Step =
   | "q3_start_date"
   | "q4_setup"
   | "q5_sop"
+  | "q6_english"
+  | "q7_age"
+  | "q8_student_types"
   | "completed";
 
 interface Answers {
@@ -31,6 +34,9 @@ interface Answers {
   start_date?: string;
   setup?: string;
   sop?: string;
+  english_level?: string;
+  age?: number;
+  student_types?: string;
 }
 
 interface SessionState {
@@ -90,7 +96,7 @@ interface QuestionButton {
 interface Question {
   key: keyof Answers;
   text: string;
-  buttons: QuestionButton[][];
+  buttons: QuestionButton[][]; // empty for Q7 (free-text age input)
 }
 
 // ---------------------------------------------------------------------------
@@ -101,57 +107,81 @@ const QUESTIONS: readonly Question[] = [
   {
     key: "team_role",
     text:
-      "👋 *Question 1 of 5*\n\n" +
-      "Are you applying as a *SpanishVIP team member*?\n\n" +
-      "_Note: This is an internal team position — not a marketplace or freelance " +
-      "platform like italki or Preply._",
+      "<b>Q1/8</b> 🧩\n" +
+      "En SpanishVIP buscamos un rol de <b>equipo</b> (no estilo marketplace).\n" +
+      "¿Buscas un rol fijo y comprometido con el equipo?",
     buttons: [
-      [{ text: "✅ Yes, I'm applying as a team member", data: "q1:yes" }],
-      [{ text: "❌ No, I prefer marketplace platforms", data: "q1:no" }],
+      [{ text: "1) ✅ Sí", data: "Q1_YES" }],
+      [{ text: "2) ❌ No", data: "Q1_NO" }],
     ],
   },
   {
     key: "weekly_availability",
     text:
-      "📅 *Question 2 of 5*\n\n" +
-      "How many hours per week are you available to teach?\n\n" +
-      "_Choose the option that best reflects your current availability._",
+      "<b>Q2/8</b> 🗓️\n" +
+      "¿Cuántas horas por semana puedes comprometerte de forma constante?",
     buttons: [
-      [{ text: "⏰ Full-time — 30+ hours/week", data: "q2:full_time" }],
-      [{ text: "🕐 Part-time — 15–29 hours/week", data: "q2:part_time" }],
-      [{ text: "🔸 Less than 15 hours/week", data: "q2:less_than_15" }],
+      [{ text: "1) 💪 Tiempo completo (30+ hrs/sem)", data: "Q2_FT" }],
+      [{ text: "2) 🙂 Medio tiempo (15–29 hrs/sem)", data: "Q2_PT" }],
+      [{ text: "3) 🥲 Menos de 15 hrs/sem", data: "Q2_LOW" }],
     ],
   },
   {
     key: "start_date",
-    text: "🚀 *Question 3 of 5*\n\nWhen would you be ready to start teaching with SpanishVIP?",
+    text: "<b>Q3/8</b> ⏱️\n¿Cuándo podrías empezar?",
     buttons: [
-      [{ text: "🟢 Immediately", data: "q3:immediately" }],
-      [{ text: "📆 In 1–2 weeks", data: "q3:one_two_weeks" }],
-      [{ text: "🗓 In 1 month or more", data: "q3:one_month_plus" }],
+      [{ text: "1) 🚀 Inmediatamente", data: "Q3_NOW" }],
+      [{ text: "2) 📆 En 1–2 semanas", data: "Q3_SOON" }],
+      [{ text: "3) 🗓️ En 1 mes o más", data: "Q3_LATER" }],
     ],
   },
   {
     key: "setup",
     text:
-      "💻 *Question 4 of 5*\n\n" +
-      "Do you have *both* of the following?\n\n" +
-      "• A stable internet connection\n" +
-      "• A quiet, professional teaching space",
+      "<b>Q4/8</b> 💻🎧\n" +
+      "¿Tienes internet estable + un lugar tranquilo para enseñar?",
     buttons: [
-      [{ text: "✅ Yes, I have both", data: "q4:yes" }],
-      [{ text: "❌ No / Not yet", data: "q4:no" }],
+      [{ text: "1) ✅ Sí", data: "Q4_YES" }],
+      [{ text: "2) ❌ No", data: "Q4_NO" }],
     ],
   },
   {
     key: "sop",
     text:
-      "📋 *Question 5 of 5*\n\n" +
-      "SpanishVIP uses a structured curriculum and standard operating procedures (SOPs). " +
-      "Are you willing to follow them consistently?",
+      "<b>Q5/8</b> 📚✨\n" +
+      "¿Estás de acuerdo en seguir el currículum y los SOPs del equipo?",
     buttons: [
-      [{ text: "✅ Yes, absolutely", data: "q5:yes" }],
-      [{ text: "❌ No, I prefer my own approach", data: "q5:no" }],
+      [{ text: "1) ✅ Sí", data: "Q5_YES" }],
+      [{ text: "2) ❌ No", data: "Q5_NO" }],
+    ],
+  },
+  {
+    key: "english_level",
+    text:
+      "<b>Q6/8</b> 🇺🇸🗣️\n" +
+      "¿Cuál es tu nivel de inglés?",
+    buttons: [
+      [{ text: "1) ✅ Bueno", data: "Q6_GOOD" }],
+      [{ text: "2) 🙂 Me defiendo", data: "Q6_OK" }],
+      [{ text: "3) ❌ No sé mucho", data: "Q6_LOW" }],
+    ],
+  },
+  {
+    key: "age",
+    text:
+      "<b>Q7/8</b> 🎂\n" +
+      "¿Cuál es tu edad?\n" +
+      "(Escribe solo el número, por ejemplo: 24)",
+    buttons: [], // free-text input — no inline keyboard
+  },
+  {
+    key: "student_types",
+    text: "<b>Q8/8</b> 👩‍🏫\n¿A qué tipo de estudiantes has enseñado?",
+    buttons: [
+      [{ text: "1) Niños 👧🧒", data: "Q8_KIDS" }],
+      [{ text: "2) Jóvenes 🎓", data: "Q8_TEENS" }],
+      [{ text: "3) Adultos 💼", data: "Q8_ADULTS" }],
+      [{ text: "4) Todos los anteriores 🌟", data: "Q8_ALL" }],
     ],
   },
 ];
@@ -163,23 +193,40 @@ const STEP_ORDER: Step[] = [
   "q3_start_date",
   "q4_setup",
   "q5_sop",
+  "q6_english",
+  "q7_age",
+  "q8_student_types",
 ];
 
 // Maps each step to the callback_data prefix used by that step's buttons
 const STEP_PREFIX: Record<Step, string> = {
-  q1_team_role: "q1",
-  q2_weekly_hours: "q2",
-  q3_start_date: "q3",
-  q4_setup: "q4",
-  q5_sop: "q5",
+  q1_team_role: "Q1",
+  q2_weekly_hours: "Q2",
+  q3_start_date: "Q3",
+  q4_setup: "Q4",
+  q5_sop: "Q5",
+  q6_english: "Q6",
+  q7_age: "Q7",
+  q8_student_types: "Q8",
   completed: "",
 };
 
-// Maps Q2 answer values to approximate weekly hours for threshold comparison
+// Maps callback suffix → canonical answer value for each question prefix
+const CALLBACK_VALUE_MAP: Record<string, Record<string, string>> = {
+  Q1: { YES: "yes", NO: "no" },
+  Q2: { FT: "full_time", PT: "part_time", LOW: "low" },
+  Q3: { NOW: "now", SOON: "soon", LATER: "later" },
+  Q4: { YES: "yes", NO: "no" },
+  Q5: { YES: "yes", NO: "no" },
+  Q6: { GOOD: "good", OK: "ok", LOW: "low" },
+  Q8: { KIDS: "kids", TEENS: "teens", ADULTS: "adults", ALL: "all" },
+};
+
+// Maps Q2 canonical answer values to approximate weekly hours for threshold comparison
 const HOURS_MAP: Record<string, number> = {
   full_time: 30,
   part_time: 20,
-  less_than_15: 0,
+  low: 0,
 };
 
 // KV TTLs
@@ -223,10 +270,6 @@ async function deleteSession(chatId: number, env: Env): Promise<void> {
 // Rate limiting — per-chat sliding window stored in KV
 // ---------------------------------------------------------------------------
 
-/**
- * Returns true if the action is allowed, false if rate-limited.
- * Records this action in KV when allowed.
- */
 async function checkRateLimit(chatId: number, env: Env): Promise<boolean> {
   const key = `rl:${chatId}`;
   const now = Date.now();
@@ -241,11 +284,10 @@ async function checkRateLimit(chatId: number, env: Env): Promise<boolean> {
     }
   }
 
-  // Keep only timestamps within the current window
   const recent = state.timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
   if (recent.length >= RATE_LIMIT_MAX_ACTIONS) {
-    return false; // over limit — do NOT record
+    return false;
   }
 
   recent.push(now);
@@ -270,7 +312,7 @@ async function sendMessage(
   const body: Record<string, unknown> = {
     chat_id: chatId,
     text,
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
   };
   if (replyMarkup) {
     body.reply_markup = replyMarkup;
@@ -317,6 +359,11 @@ async function answerCallbackQuery(
 
 async function sendQuestion(chatId: number, questionIndex: number, env: Env): Promise<void> {
   const question = QUESTIONS[questionIndex];
+  if (question.buttons.length === 0) {
+    // Q7 age — no buttons, just text prompt
+    await sendMessage(chatId, question.text, null, env);
+    return;
+  }
   const inlineKeyboard = {
     inline_keyboard: question.buttons.map((row) =>
       row.map((btn) => ({ text: btn.text, callback_data: btn.data })),
@@ -327,7 +374,7 @@ async function sendQuestion(chatId: number, questionIndex: number, env: Env): Pr
 
 /**
  * Pure function — checks if the given answer to the given step triggers a fail.
- * Returns a human-readable failure reason, or null if the answer passes.
+ * Returns the user-facing Spanish failure message, or null if the answer passes.
  */
 function checkFailCondition(
   step: Step,
@@ -337,27 +384,53 @@ function checkFailCondition(
   switch (step) {
     case "q1_team_role":
       if (answer === "no") {
-        return "Not applying as a SpanishVIP team member";
+        return (
+          "💛 ¡Gracias por tu interés!\n" +
+          "En este momento buscamos candidatos para un rol fijo de equipo.\n" +
+          "🙏 Te deseamos mucho éxito."
+        );
       }
       break;
 
     case "q2_weekly_hours": {
       const hours = HOURS_MAP[answer] ?? 0;
       if (hours < minWeeklyHours) {
-        return `Availability (approx. ${hours}h/week) is below the minimum required (${minWeeklyHours}h/week)`;
+        return (
+          "💛 ¡Gracias!\n" +
+          `En este momento necesitamos un compromiso mínimo de ${minWeeklyHours} horas semanales.\n` +
+          "🙏 Te agradecemos tu tiempo."
+        );
       }
       break;
     }
 
     case "q4_setup":
       if (answer === "no") {
-        return "Does not have stable internet and/or a professional teaching space";
+        return (
+          "💛 ¡Gracias!\n" +
+          "Para este rol es necesario contar con internet estable y un espacio tranquilo.\n" +
+          "🙏 Te deseamos lo mejor."
+        );
       }
       break;
 
     case "q5_sop":
       if (answer === "no") {
-        return "Unwilling to follow SpanishVIP curriculum and SOPs";
+        return (
+          "💛 ¡Gracias!\n" +
+          "Es importante seguir el currículum y los SOPs del equipo.\n" +
+          "🙏 Te agradecemos tu interés."
+        );
+      }
+      break;
+
+    case "q6_english":
+      if (answer === "low") {
+        return (
+          "💛 ¡Gracias!\n" +
+          "Para este rol necesitamos al menos un nivel intermedio de inglés.\n" +
+          "🙏 Te deseamos mucho éxito."
+        );
       }
       break;
   }
@@ -396,23 +469,18 @@ async function reportResult(
   if (result === "pass") {
     await sendMessage(
       chatId,
-      "🎉 *Congratulations!* You've passed the initial screening.\n\n" +
-        "Our team will review your application and reach out soon.\n\n" +
-        "In the meantime, you can also connect directly with our coordinator:\n" +
-        env.MARIA_TELEGRAM_LINK,
+      "🎉 <b>¡Excelente! Has pasado el pre-filtro</b> ✅\n\n" +
+        "🧑‍💼 Siguiente paso: hablar con una persona del equipo para coordinar tu <b>primera entrevista</b>.\n\n" +
+        "👉 Escribe aquí a <b>Maria Camila</b> para continuar:\n" +
+        env.MARIA_WHATSAPP_LINK + "\n\n" +
+        "💬 <i>Mensaje sugerido:</i>\n" +
+        '"Hola Maria, pasé el pre-filtro de SpanishVIP. Mi nombre es ___ y mi correo es ___."',
       null,
       env,
     );
   } else {
-    await sendMessage(
-      chatId,
-      "Thank you for your interest in SpanishVIP! 🙏\n\n" +
-        "Based on your answers, we're not able to move forward at this time.\n\n" +
-        `_Reason: ${reason}_\n\n` +
-        "We appreciate you taking the time and wish you all the best in your teaching career!",
-      null,
-      env,
-    );
+    // reason already contains the full user-facing Spanish message
+    await sendMessage(chatId, reason, null, env);
   }
 
   // Mark completed and clean up — mark first so stale callbacks are idempotent
@@ -434,9 +502,7 @@ async function handleStart(
   if (!token || token.trim().length < 4) {
     await sendMessage(
       chatId,
-      "⚠️ *Invalid or missing screening token.*\n\n" +
-        "Please use the *Telegram link* that was sent to you in the application confirmation email.\n\n" +
-        "If you believe this is an error, contact our support team.",
+      "⚠️ Por favor usa el enlace de aplicación para empezar.",
       null,
       env,
     );
@@ -452,17 +518,6 @@ async function handleStart(
   };
 
   await saveSession(chatId, state, env);
-
-  await sendMessage(
-    chatId,
-    `👋 Hi *${from.first_name}*! Welcome to the SpanishVIP teacher screening.\n\n` +
-      "We have *5 quick questions* to see if you're a great fit for our team. " +
-      "Answer each one using the buttons — it only takes about a minute!\n\n" +
-      "_Let's get started:_",
-    null,
-    env,
-  );
-
   await sendQuestion(chatId, 0, env);
 }
 
@@ -481,7 +536,7 @@ async function handleMessage(
   if (!allowed) {
     await sendMessage(
       chatId,
-      "⏳ You're sending messages too quickly. Please wait a moment before trying again.",
+      "⏳ Estás enviando mensajes muy rápido. Espera un momento.",
       null,
       env,
     );
@@ -497,10 +552,7 @@ async function handleMessage(
     if (!token) {
       await sendMessage(
         chatId,
-        "⚠️ *No screening token found.*\n\n" +
-          "To start your screening, please open the *Telegram link* from your application email — " +
-          "it contains a unique token that identifies you.\n\n" +
-          "If you haven't received the email, check your spam folder.",
+        "⚠️ Por favor usa el enlace de aplicación para empezar.",
         null,
         env,
       );
@@ -518,8 +570,7 @@ async function handleMessage(
     } else {
       await sendMessage(
         chatId,
-        "🔄 *No active session found.*\n\n" +
-          "Please open the *Telegram link* from your application email to start your screening.",
+        "🔄 No se encontró una sesión activa. Usa el enlace de tu correo para empezar.",
         null,
         env,
       );
@@ -531,30 +582,61 @@ async function handleMessage(
   if (trimmed.startsWith("/help")) {
     await sendMessage(
       chatId,
-      "*SpanishVIP Teacher Screening Bot* 🤖\n\n" +
-        "This bot guides teacher applicants through a short screening to join the SpanishVIP team.\n\n" +
-        "*How it works:*\n" +
-        "1\\. You apply through our form and receive a unique Telegram link by email\n" +
-        "2\\. Click the link to open this bot and start the screening\n" +
-        "3\\. Answer 5 short questions using the inline buttons\n" +
-        "4\\. Our team reviews your answers and follows up with next steps\n\n" +
-        "*Commands:*\n" +
-        "/start — Begin screening (requires your unique link from the email)\n" +
-        "/restart — Restart the screening using your current session\n" +
-        "/help — Show this help message\n\n" +
-        "Need help? Contact us through the SpanishVIP website.",
+      "<b>SpanishVIP — Bot de Pre-filtro</b> 🤖\n\n" +
+        "Este bot realiza un screening rápido para candidatos a profesor.\n\n" +
+        "/start — Iniciar (requiere el enlace de tu correo)\n" +
+        "/restart — Reiniciar el screening\n" +
+        "/help — Mostrar este mensaje",
       null,
       env,
     );
     return;
   }
 
-  // Any other text — check if they're mid-screening
+  // Check if they're mid-screening
   const session = await loadSession(chatId, env);
   if (session && session.step !== "completed") {
+    // Q7 age — expects free text
+    if (session.step === "q7_age") {
+      const parsed = parseInt(trimmed, 10);
+      if (isNaN(parsed) || parsed < 10 || parsed > 80) {
+        await sendMessage(
+          chatId,
+          "😊 Por favor escribe tu edad en números (ej: 24).",
+          null,
+          env,
+        );
+        return;
+      }
+
+      session.answers.age = parsed;
+
+      if (parsed >= 35) {
+        await reportResult(
+          "fail",
+          "💛 ¡Gracias!\n" +
+            "En este momento estamos buscando candidatos <b>menores de 35 años</b> para este rol.\n" +
+            "🙏 Te agradecemos tu tiempo y tu interés en SpanishVIP.",
+          session,
+          chatId,
+          from,
+          env,
+        );
+        return;
+      }
+
+      // Age OK — advance to Q8
+      const nextStepIndex = STEP_ORDER.indexOf("q7_age") + 1;
+      session.step = STEP_ORDER[nextStepIndex];
+      await saveSession(chatId, session, env);
+      await sendQuestion(chatId, nextStepIndex, env);
+      return;
+    }
+
+    // Any other step — prompt to use buttons
     await sendMessage(
       chatId,
-      "👆 Please use the *buttons* to answer the current question.",
+      "👆 Por favor usa los <b>botones</b> para responder.",
       null,
       env,
     );
@@ -564,8 +646,7 @@ async function handleMessage(
   // No active session or already completed
   await sendMessage(
     chatId,
-    "👋 To start your SpanishVIP teacher screening, please use the *Telegram link* " +
-      "from your application email.\n\nType /help for more information.",
+    "👋 Para iniciar tu screening, usa el enlace que recibiste por correo.\n\nEscribe /help para más información.",
     null,
     env,
   );
@@ -588,7 +669,7 @@ async function handleCallbackQuery(cq: TelegramCallbackQuery, env: Env): Promise
   if (!allowed) {
     await sendMessage(
       chatId,
-      "⏳ You're clicking too quickly. Please wait a moment before continuing.",
+      "⏳ Estás enviando mensajes muy rápido. Espera un momento.",
       null,
       env,
     );
@@ -600,8 +681,7 @@ async function handleCallbackQuery(cq: TelegramCallbackQuery, env: Env): Promise
   if (!state) {
     await sendMessage(
       chatId,
-      "⚠️ Your session has expired or was not found.\n\n" +
-        "Please use the *Telegram link* from your application email to start a new screening.",
+      "⚠️ Tu sesión ha expirado. Usa el enlace de tu correo para iniciar de nuevo.",
       null,
       env,
     );
@@ -613,20 +693,31 @@ async function handleCallbackQuery(cq: TelegramCallbackQuery, env: Env): Promise
     return;
   }
 
-  // Parse callback data format: "q1:yes" → qPrefix="q1", answerValue="yes"
-  const colonIdx = data.indexOf(":");
-  if (colonIdx === -1) {
-    console.error("Unexpected callback_data format (no colon):", data);
+  // Parse callback data format: "Q1_YES" → qPrefix="Q1", callbackSuffix="YES"
+  const underscoreIdx = data.indexOf("_");
+  if (underscoreIdx === -1) {
+    console.error("Unexpected callback_data format (no underscore):", data);
     return;
   }
-  const qPrefix = data.slice(0, colonIdx);
-  const answerValue = data.slice(colonIdx + 1);
+  const qPrefix = data.slice(0, underscoreIdx);
+  const callbackSuffix = data.slice(underscoreIdx + 1);
 
   // Validate that the pressed button belongs to the current step
-  // (guards against stale messages from a previous question)
   const expectedPrefix = STEP_PREFIX[state.step];
   if (qPrefix !== expectedPrefix) {
-    return; // silently ignore
+    return; // silently ignore stale button
+  }
+
+  // Look up canonical answer value
+  const prefixMap = CALLBACK_VALUE_MAP[qPrefix];
+  if (!prefixMap) {
+    console.error("No CALLBACK_VALUE_MAP entry for prefix:", qPrefix);
+    return;
+  }
+  const answerValue = prefixMap[callbackSuffix];
+  if (!answerValue) {
+    console.error("Unknown callback suffix:", callbackSuffix, "for prefix:", qPrefix);
+    return;
   }
 
   // Find the current question
@@ -638,7 +729,7 @@ async function handleCallbackQuery(cq: TelegramCallbackQuery, env: Env): Promise
   const question = QUESTIONS[stepIndex];
 
   // Record the answer
-  state.answers[question.key] = answerValue;
+  (state.answers as Record<string, unknown>)[question.key] = answerValue;
 
   // Determine minimum weekly hours threshold
   const minWeeklyHours = parseInt(env.MIN_WEEKLY_HOURS ?? "15", 10) || 15;
@@ -693,7 +784,6 @@ async function handleWebhook(request: Request, env: Env): Promise<void> {
       console.error(`Error handling message for chatId ${chatId}:`, e);
     }
   }
-  // Other update types (edited_message, channel_post, etc.) are intentionally ignored
 }
 
 // ---------------------------------------------------------------------------
