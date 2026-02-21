@@ -13,7 +13,7 @@ interface Env {
   BOT_TOKEN: string;
   BOT_KV: KVNamespace;
   MAKE_WEBHOOK_URL: string;
-  MARIA_WHATSAPP_LINK: string;
+  MARIA_WA_ME_LINK?: string;
   MIN_WEEKLY_HOURS?: string; // optional string env var; defaults to "15"
 }
 
@@ -467,12 +467,16 @@ async function reportResult(
 
   // Send user-facing result message
   if (result === "pass") {
+    const waLink = env.MARIA_WA_ME_LINK;
+    if (!waLink) {
+      console.error("MARIA_WA_ME_LINK is not configured — omitting WhatsApp link from PASS message");
+    }
+    const linkLine = waLink ? `👉 Escribe aquí a <b>Maria Camila</b> por WhatsApp:\n${waLink}\n\n` : "";
     await sendMessage(
       chatId,
       "🎉 <b>¡Excelente! Has pasado el pre-filtro</b> ✅\n\n" +
         "🧑‍💼 Siguiente paso: hablar con una persona del equipo para coordinar tu <b>primera entrevista</b>.\n\n" +
-        "👉 Escribe aquí a <b>Maria Camila</b> para continuar:\n" +
-        env.MARIA_WHATSAPP_LINK + "\n\n" +
+        linkLine +
         "💬 <i>Mensaje sugerido:</i>\n" +
         '"Hola Maria, pasé el pre-filtro de SpanishVIP. Mi nombre es ___ y mi correo es ___."',
       null,
