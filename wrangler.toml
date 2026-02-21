@@ -14,7 +14,6 @@
 # 4. Set secrets (never put these in this file!):
 #    npx wrangler secret put BOT_TOKEN
 #    npx wrangler secret put MAKE_WEBHOOK_URL
-#    npx wrangler secret put MARIA_WHATSAPP_LINK
 #
 # 5. Deploy:
 #    npx wrangler deploy
@@ -51,11 +50,14 @@ preview_id = "64e222a46e9b4fbab712bf88f6696b6c"
 # --- Non-secret Variables ---
 # MIN_WEEKLY_HOURS: applicants with fewer available hours than this value will FAIL.
 # Change this value here and redeploy to adjust the threshold without touching code.
+# MARIA_WA_ME_LINK: WhatsApp deep-link shown to PASS candidates to reach Maria Camila.
 [vars]
-MIN_WEEKLY_HOURS = 16
+
+MIN_WEEKLY_HOURS = 15
+MARIA_WA_ME_LINK = "https://wa.me/573022379539?text=Hi%20Maria%2C%20I%20passed%20screening%20and%20would%20like%20to%20schedule%20my%20interview"
+>>>>>>> 2e05eec8de11c9b6fa380e88676d2f9f391af874
 
 # --- Secrets ---
 # The following must be set via `wrangler secret put` (NOT here):
-#   BOT_TOKEN           - Telegram bot token from @BotFather
-#   MAKE_WEBHOOK_URL    - Make.com (Integromat) webhook URL to receive results
-#   MARIA_WHATSAPP_LINK - WhatsApp link for PASS hand-off (e.g. https://wa.me/573022379539)
+#   BOT_TOKEN        - Telegram bot token from @BotFather
+#   MAKE_WEBHOOK_URL - Make.com (Integromat) webhook URL to receive results
