@@ -14,7 +14,7 @@
 # 4. Set secrets (never put these in this file!):
 #    npx wrangler secret put BOT_TOKEN
 #    npx wrangler secret put MAKE_WEBHOOK_URL
-#    npx wrangler secret put MARIA_TELEGRAM_LINK
+#    npx wrangler secret put MARIA_WHATSAPP_LINK
 #
 # 5. Deploy:
 #    npx wrangler deploy
@@ -58,4 +58,4 @@ MIN_WEEKLY_HOURS = 15
 # The following must be set via `wrangler secret put` (NOT here):
 #   BOT_TOKEN           - Telegram bot token from @BotFather
 #   MAKE_WEBHOOK_URL    - Make.com (Integromat) webhook URL to receive results
-#   MARIA_TELEGRAM_LINK - Telegram link for PASS hand-off (e.g. https://t.me/mariacamila)
+#   MARIA_WHATSAPP_LINK - WhatsApp link for PASS hand-off (e.g. https://wa.me/573022379539)
