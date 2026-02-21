@@ -55,7 +55,7 @@ preview_id = "64e222a46e9b4fbab712bf88f6696b6c"
 
 MIN_WEEKLY_HOURS = 15
 MARIA_WA_ME_LINK = "https://wa.me/573022379539?text=Hi%20Maria%2C%20I%20passed%20screening%20and%20would%20like%20to%20schedule%20my%20interview"
->>>>>>> 2e05eec8de11c9b6fa380e88676d2f9f391af874
+
 
 # --- Secrets ---
 # The following must be set via `wrangler secret put` (NOT here):
